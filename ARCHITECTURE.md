@@ -33,7 +33,7 @@
 
 ## Windows 文件身份与竞态
 
-文件身份由卷标识、文件索引、创建时间组成；版本另含 ChangeTime、LastWriteTime 和大小。ChangeTime 用来识别修改后恢复 mtime 的情况。没有跨电脑比较时钟。
+文件身份由卷标识、文件索引、创建时间组成；Windows 版本另外包含 NTFS 文件 USN、ChangeTime、LastWriteTime 和大小。快速写入可能落在同一个系统时间刻度，因此不能仅依靠 ChangeTime。通过 FSCTL_READ_FILE_USN_DATA 读取文件 USN，以识别同大小、恢复 mtime 的修改。USN 在本机用于等值检查，不跨机器排序。读取不到有效 USN 时明确拒绝操作，不降级为时间戳猜测。此测试版的 Windows 来源及共享目录要求本机 NTFS 卷已启用 USN 日志。
 
 操作期间锁住祖先目录，拒绝 reparse point，阻止祖先被替换。对破坏性文件操作使用同一个带 DELETE 权限的句柄核对版本并重命名；文件内容读写使用 Windows 共享模式保护。目录子项不构成整体快照。Windows 本机恶意管理员、内核或底层磁盘修改不在应用级防护范围内。
 

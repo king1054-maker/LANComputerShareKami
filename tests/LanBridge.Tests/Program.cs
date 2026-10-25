@@ -230,6 +230,18 @@ await Test("source changed after selection is not silently copied", async () =>
     await Reject(async()=>await ca.UploadAsync(nb.Self,p,"","changed.txt",Store.NewOperationId(),version,null,default,rootB));
     Check(!File.Exists(Path.Combine(sb.Root,"changed.txt")),"changed source committed");
 });
+await Test("rapid same-size rewrites with restored mtime always invalidate version", () =>
+{
+    var p = Path.Combine(home, "rapid-edit.txt"); File.WriteAllText(p, "0000");
+    var time = File.GetLastWriteTimeUtc(p);
+    for (int i = 1; i <= 64; i++)
+    {
+        var before = FileSystem.Version(p);
+        File.WriteAllText(p, i.ToString("D4")); File.SetLastWriteTimeUtc(p, time);
+        Check(FileSystem.Version(p) != before, $"Undetected same-size rewrite {i}; waiting is not a correctness mechanism");
+    }
+    return Task.CompletedTask;
+});
 await Test("mtime inversion never chooses an older copy", async () =>
 {
     var p=Path.Combine(home,"clock.txt"); File.WriteAllText(p,"PAST-TIMESTAMP-NEW-CONTENT"); File.SetLastWriteTimeUtc(p,DateTime.UtcNow.AddDays(-2));
