@@ -31,6 +31,9 @@ public static class FileSystem
     private static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int kind, out BasicInfo info, uint size);
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetFileInformationByHandle(SafeFileHandle file, int kind, IntPtr info, uint size);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool DeviceIoControl(SafeFileHandle file, uint code, IntPtr input, uint inputSize,
+        [Out] byte[] output, uint outputSize, out uint returned, IntPtr overlapped);
     [DllImport("libc", SetLastError = true, EntryPoint = "statx")]
     private static extern int LinuxStatx(int directory, string path, int flags, uint mask, out Statx stat);
 
@@ -63,10 +66,30 @@ public static class FileSystem
             var h = handle ?? own!;
             if (!GetFileInformationByHandleEx(h, 0, out var i, (uint)Marshal.SizeOf<BasicInfo>())) throw new Win32Exception(Marshal.GetLastWin32Error());
             if (!GetFileInformationByHandle(h, out var f)) throw new Win32Exception(Marshal.GetLastWin32Error());
-            return JsonFiles.Digest(new { id = StableId(path, h), i.Change, i.Write, f.SizeHigh, f.SizeLow });
+            var usn = ChangeSequence(path, h);
+            return JsonFiles.Digest(new { id = StableId(path, h), usn, i.Change, i.Write, f.SizeHigh, f.SizeLow });
         }
         if (LinuxStatx(-100, path, 0x100, 0x7ff, out var s) != 0) throw new IOException("文件不存在：" + path);
         return JsonFiles.Digest(new { id = StableId(path), s.ChangeSec, s.ChangeNsec, s.Size });
+    }
+    private static long ChangeSequence(string path, SafeFileHandle lockedHandle)
+    {
+        // The data handle can be asynchronous. Query through a separate synchronous
+        // attribute handle while the original handle prevents replacement/writes.
+        using var query = CreateFileW(path, 0x80u, FileShare.ReadWrite | FileShare.Delete,
+            IntPtr.Zero, 3, 0x02000000u | 0x00200000u, IntPtr.Zero);
+        if (query.IsInvalid || StableId(path, query) != StableId(path, lockedHandle))
+            throw new IOException("文件身份已变化，请刷新后重试。");
+        var record = new byte[4096];
+        // FSCTL_READ_FILE_USN_DATA; null input requests USN_RECORD_V2.
+        if (!DeviceIoControl(query, 0x000900EB, IntPtr.Zero, 0, record, (uint)record.Length, out var returned, IntPtr.Zero))
+            throw new IOException("无法读取文件变更序号。请使用已启用 USN 日志的本机 NTFS 磁盘。",
+                new Win32Exception(Marshal.GetLastWin32Error()));
+        if (returned < 60 || BitConverter.ToUInt16(record, 4) != 2 || BitConverter.ToUInt32(record, 0) > returned)
+            throw new IOException("文件系统返回了不支持的变更序号格式。");
+        var usn = BitConverter.ToInt64(record, 24);
+        if (usn <= 0) throw new IOException("此磁盘没有可用的文件变更日志。请使用已启用 USN 日志的本机 NTFS 磁盘。");
+        return usn;
     }
     public static void Move(string source, string destination, SafeFileHandle? handle = null)
     {
