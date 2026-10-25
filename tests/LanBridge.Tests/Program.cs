@@ -104,8 +104,10 @@ await Test("rename is conditional and idempotent", async () =>
 {
     var e = (await sb.ListAsync("")).Single(e => e.Name == "movie.bin");
     var r = new Request { Kind = "rename", Path = e.Path, Name = "renamed.bin", Version = e.Version, OperationId = Store.NewOperationId() };
-    await ca.CallAsync(nb.Self, r); await ca.CallAsync(nb.Self, r);
-    Check(File.Exists(Path.Combine(sb.Root, "renamed.bin")) && !File.Exists(Path.Combine(sb.Root, "movie.bin")), "rename failed");
+    var first = await ca.CallAsync(nb.Self, r); var replay = await ca.CallAsync(nb.Self, r);
+    var newExists = File.Exists(Path.Combine(sb.Root, "renamed.bin"));
+    var oldExists = File.Exists(Path.Combine(sb.Root, "movie.bin"));
+    Check(newExists && !oldExists, $"rename failed: newExists={newExists}, oldExists={oldExists}, first={first.Path}, replay={replay.Path}, entries=[{string.Join(", ", Directory.GetFileSystemEntries(sb.Root).Select(Path.GetFileName))}]");
 });
 await Test("path traversal, ADS and reserved names rejected", async () =>
 {
