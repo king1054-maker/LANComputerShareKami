@@ -1,2 +1,99 @@
-# LANComputerShareKami
-Local network computer interoperability project
+# LanBridge · 邻窗互传
+
+Windows 11 局域网文件管理器，0.1 测试版。原生 WinForms 界面、C# / .NET 10，核心逻辑没有第三方 NuGet 依赖。
+
+[下载已发布测试版](https://github.com/king1054-maker/LANComputerShareKami/releases) · [自动测试记录](https://github.com/king1054-maker/LANComputerShareKami/actions) · [给其他 AI 的接手入口](AI-START-HERE.md) · [版本信息](VERSION.json) · [变更记录](CHANGELOG.md)
+
+`main` 是最新开发代码。固定测试版以 Releases 的标签和 `release-manifest.json` 中的源码提交为准；只有自动检查全部通过才发布。首次流程运行期间，下载页可能尚无版本。
+
+**两边看到的是文件所属电脑的真实目录，不是两份自动同步的镜像。** 跨电脑拖动默认复制；复制完成后两份文件相互独立。软件不会自行把旧副本传回来。
+
+## 先用起来
+
+1. 在两台 Windows 11 x64 电脑上分别解压 `LanBridge-Windows-x64.zip`，双击 `LanBridge.exe`。程序自带 .NET 运行时，不需安装 SDK。
+2. 首次 Windows 防火墙提示时，允许在你信任的**专用网络**通信。不要以管理员身份运行主程序，否则资源管理器拖入可能被 Windows 阻止。
+3. 同一局域网中运行本程序的设备会自动出现在顶部下拉框。首次点击“连接设备”，核对两边屏幕的配对码，对方同意后即可使用。以后自动连接。
+4. 左边是本机收件箱，右边是选中的电脑。把文件拖到窗口空白处即复制到当前目录，拖到文件夹行即复制到该文件夹。可多选，也可以拖整个文件夹。
+5. 双击文件夹进入；双击文件打开。远程文件会先下载为本地副本再打开。Delete 删除，F2 改名，Ctrl+C / Ctrl+V 复制粘贴，F5 刷新。
+
+测试版尚未进行发行者代码签名。
+
+默认共享目录：`%USERPROFILE%\Downloads\LanBridge 收件箱`。设置中可更换，下次启动生效。双方配对即授权管理各自这个共享目录，**不开放整个硬盘**。
+
+发送普通下载文件无需先移进收件箱：直接从资源管理器拖到对方窗口，或点“发送文件 / 发送文件夹”。
+
+删除采用 LanBridge 回收区，**不是 Windows 回收站**。在文件所属电脑打开“设置 → 本机回收区 / 恢复文件”恢复。同名恢复保留两份；如果原父目录也被删除，先恢复父目录。
+
+## 附件内容
+
+- `LanBridge-Source.zip`：完整源码、测试、构建脚本、架构说明。
+- `LanBridge-Windows-x64.zip`：自包含 Windows x64 测试程序、使用说明、网络修复脚本和拖放自检脚本。
+
+## 从源码构建
+
+安装微软 [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)，解压源码，双击 `Build-Windows.cmd`。
+
+脚本先运行核心测试，再发布自包含单文件程序到 `release\win-x64\LanBridge.exe`。首次构建需联网下载微软 Windows 运行时包。程序运行时不需要互联网，不连接云端服务。
+
+命令行等价操作：
+
+```powershell
+dotnet run --project tests/LanBridge.Tests -c Release
+dotnet publish src/LanBridge.Windows/LanBridge.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o release/win-x64
+```
+
+ARM Windows 开发者可把 `win-x64` 改成 `win-arm64` 构建；随附二进制只提供 x64，ARM 版本没有验证。
+
+## 已实现
+
+- IPv4 UDP 组播 + 广播设备发现；设备离线后自动更新列表。
+- 稳定证书身份，首次人工核对配对码；TLS 1.2/1.3 加密，后续固定证书指纹。
+- 多设备选择，真实目录浏览、创建文件夹、删除与改名。
+- 双向文件 / 文件夹复制、空目录、中文名、多选、目标子目录拖入。
+- 原生资源管理器文件拖入、延迟获取远程文件后的拖出、复制粘贴。
+- 发送和接收进度、暂停、同一任务重试，重启后手动恢复未完成任务。
+- SHA-256 校验、临时接收后提交、同名保留两份。
+- 文件身份 + 条件版本检查；迟到的旧删除不能操作后来同名重建的文件。
+- 持久化操作记录与重复请求去重；文件提交后回执丢失，可用原操作 ID 重试。
+- 崩溃后验证已提交文件身份；无法确认结果时停止，不猜测、不强行重做。
+- 符号链接 / 目录联接拒绝、路径边界检查、同一共享目录单写入进程保护。
+
+## 验证范围与实际限制
+
+初次导入前已完成：Windows 目标编译；35 项核心测试在 Linux 上通过，包括真实 TCP/TLS、三节点传输、错误重放、恢复和内容校验。历史原始输出见 `tests/test-results.txt`。
+
+仓库自动流程另运行 Linux 与 Windows 核心测试、Windows COM 拖放自检和自包含构建。具体提交是否通过，以 Actions 和发布包里的实际报告为准，见 [证据说明](docs/test-reports/README.md)。
+
+**尚未完成：两台 Windows 11 真机联调、资源管理器真实拖放、Windows 防火墙现场验证。** Windows Server CI 不能替代 Windows 11 真机测试。`WINDOWS-ACCEPTANCE.md` 列出了具体步骤，exe 是待真机验收的测试版。
+
+第一版的边界：
+
+- 仅局域网 IPv4，不做公网穿透、自动镜像同步或离线合并。
+- 断线后重试整个未完成文件，**没有按字节断点续传**。此前已提交的文件不会重复生成。
+- 同名复制保留两份，不提供静默覆盖。跨设备拖动始终为复制，不支持剪切后自动删源。
+- 远程打开 / 拖到资源管理器，会先把完整副本缓存到本机，再交给系统。大电影需要等待下载完成；不支持边传边看。某些资源管理器目标可能在悬停阶段请求文件，缓存可能提前开始。
+- 远程 → 本机共享目录或第三台设备，第一版采用本机中转缓存，再提交目标，因此会多占临时磁盘空间；未声称实现零拷贝或直连远端转发。
+- 文件夹按清单逐文件复制，不是整个文件夹的原子快照。中途失败，已经完成的文件保留并可继续重试。
+- 共享目录应位于本机 NTFS 磁盘，父目录需要可写；不要选择盘符根目录。网络共享、特殊文件系统、长路径极限未验证。文件名组件最多 200 个字符，单目录 / 单任务最多 20000 项。
+- 配对权限是共享目录级别的读写管理权限，第一版没有更细的“只收文件 / 只读”权限选择。
+- 软件不会自动清空回收区、已完成操作记录或导出缓存，以免误删用户正在打开的内容。按需人工整理，操作日志达到 8 MB 会轮换。
+
+## 找不到对方时
+
+确认两台电脑处在同一非访客局域网，路由器没有开启客户端隔离。Windows 网络类型需为你信任的专用网络。
+
+若曾拒绝防火墙提示，可双击发行包中的 `Enable-LAN.cmd`，确认 Windows 管理员提示。它只为同目录的 LanBridge.exe 添加“专用网络 + 本地子网”的 TCP / UDP 入站规则，不关闭防火墙，不开放公共网络。主程序仍以普通用户运行。
+
+发现端口 UDP 47731，默认文件服务 TCP 47732；端口占用时文件服务选空闲端口，发现消息自动告知对方。公司网络策略可能阻止组播、广播或入站连接，程序无法绕过这些策略。
+
+## 状态在哪里
+
+- `%LOCALAPPDATA%\LanBridge`：设备证书、配对记录、设置、任务、日志、远程打开 / 拖出缓存。
+- 共享目录的**同级** `.LanBridge-xxxxxxxxxxxx`：同卷接收暂存、回收区、持久化操作记录。它不在共享目录内部，也不会被本程序作为共享目录内容发送。
+- 日志：`events.jsonl`。暂停任务保存在 `jobs`。丢失回执的删除 / 改名请求保存在 `pending-actions`，可在设置里使用原操作 ID 重试。
+
+不要把设备状态目录或 `identity.pfx` 复制给另一台电脑；每台电脑必须有自己的身份。复制源码或 exe 不受影响。
+
+## 接入下载软件
+
+参考 `ARCHITECTURE.md`。核心库与 UI 分离，下载器可以复用 `Node`、`RemoteClient`、`TransferQueue`，把已下载文件路径加入队列。无需引入文件夹同步引擎。

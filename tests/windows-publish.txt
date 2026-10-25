@@ -1,0 +1,5 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  LanBridge.Core -> /workspace/scratch/d55fb3d592f1/LanBridge/src/LanBridge.Core/bin/Release/net10.0/LanBridge.Core.dll
+  LanBridge.Windows -> /workspace/scratch/d55fb3d592f1/LanBridge/src/LanBridge.Windows/bin/Release/net10.0-windows/win-x64/LanBridge.dll
+  LanBridge.Windows -> /workspace/scratch/d55fb3d592f1/LanBridge/release/win-x64/

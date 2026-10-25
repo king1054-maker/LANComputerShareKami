@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "project": "LANComputerShareKami",
+  "application": "LanBridge",
+  "version": "0.1.0-alpha.1",
+  "release_tag": "v0.1.0-alpha.1",
+  "channel": "prerelease",
+  "development_branch": "main",
+  "repository": "https://github.com/king1054-maker/LANComputerShareKami",
+  "release_url": "https://github.com/king1054-maker/LANComputerShareKami/releases/tag/v0.1.0-alpha.1",
+  "release_manifest_url": "https://github.com/king1054-maker/LANComputerShareKami/releases/download/v0.1.0-alpha.1/release-manifest.json",
+  "manual_windows_11_dual_pc_validation": "not_run",
+  "meaning": "This is the intended version. A release exists only after CI succeeds and publishes it. Check the release manifest for its exact commit and actual automatic test evidence."
+}

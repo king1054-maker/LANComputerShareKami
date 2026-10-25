@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+release/
+artifacts/
+package-stage/
+*.user
+*.pfx
+drag-self-test.txt
+__pycache__/
+*.pyc

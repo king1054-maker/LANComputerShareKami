@@ -1,0 +1,38 @@
+PASS unpaired devices cannot browse
+PASS pairing persists mutual certificate identity
+PASS listing has no filesystem side effects
+PASS TLS file upload checks hash and commits exact bytes
+PASS lost upload acknowledgement retry does not duplicate
+PASS reused operation ID with different content is rejected
+PASS new same-name copy preserves both versions
+PASS remote download validates exact hash
+PASS deletion moves original to owner trash
+PASS immediate same-name recreation survives old delete replay
+PASS old upload replay cannot overwrite recreated file
+PASS same-size edit with restored mtime invalidates version
+PASS rename is conditional and idempotent
+PASS path traversal, ADS and reserved names rejected
+PASS symlink directory cannot escape share
+PASS mkdir lost acknowledgement is idempotent
+PASS recreated target directory rejects old incoming task
+PASS crash after filesystem rename recovers once
+PASS missing recovery evidence fails closed
+PASS bad checksum never creates final file
+PASS truncated transfer leaves no final or partial file
+PASS certificate pin mismatch is rejected
+PASS third device receives independent copy
+PASS reverse direction B to A works
+PASS folder queue, empty folder and unicode files
+PASS concurrent same-name transfers keep both without overwrite
+PASS source changed after selection is not silently copied
+PASS mtime inversion never chooses an older copy
+PASS remote-to-local queued copy completes with correct content
+PASS process-restart recovery preserves recreated files
+PASS second writer for same shared folder is blocked
+PASS revocation during receive blocks final commit
+PASS deleting original does not delete received independent copy
+PASS revoked trust blocks further operations
+PASS trash restore keeps recreated destination and restores original separately
+
+35 tests passed. Runtime: Ubuntu 24.04.3 LTS
+Native Explorer dragging, Windows firewall and multi-PC discovery require the Windows acceptance checklist.

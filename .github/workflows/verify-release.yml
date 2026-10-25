@@ -1,0 +1,96 @@
+name: Verify and publish Windows preview
+
+on:
+  push:
+    branches: [main, 'ai/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  linux:
+    name: Linux core tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run core tests
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          dotnet run --project tests/LanBridge.Tests -c Release 2>&1 | tee artifacts/linux-core-tests.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: linux-evidence
+          path: artifacts/*
+          if-no-files-found: error
+
+  windows:
+    name: Windows tests, COM and package
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run Windows core tests
+        shell: pwsh
+        run: |
+          New-Item artifacts -ItemType Directory -Force | Out-Null
+          dotnet run --project tests/LanBridge.Tests -c Release 2>&1 | Tee-Object artifacts/windows-core-tests.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Windows core tests failed' }
+      - name: Publish self-contained Windows application
+        shell: pwsh
+        run: |
+          dotnet publish src/LanBridge.Windows/LanBridge.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o release/win-x64 2>&1 | Tee-Object artifacts/windows-publish.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Windows publish failed' }
+      - name: Test native COM file drag data without dialogs
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath ./release/win-x64/LanBridge.exe -ArgumentList '--self-test-drag','--headless' -WorkingDirectory $PWD -PassThru
+          if (-not $process.WaitForExit(60000)) { $process.Kill(); throw 'COM self-test timed out' }
+          if (Test-Path drag-self-test.txt) { Copy-Item drag-self-test.txt artifacts/windows-drag-self-test.txt }
+          if ($process.ExitCode -ne 0) { throw "COM self-test failed: $($process.ExitCode)" }
+          if (-not (Test-Path artifacts/windows-drag-self-test.txt)) { throw 'Missing COM evidence' }
+          if (-not (Select-String -Path artifacts/windows-drag-self-test.txt -Pattern '^PASS:')) { throw 'COM evidence does not report PASS' }
+      - name: Package application and notices
+        shell: pwsh
+        run: ./scripts/Package-Windows.ps1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: windows-package-and-evidence
+          path: artifacts/*
+          if-no-files-found: error
+
+  release:
+    name: Publish a new immutable preview
+    needs: [linux, windows]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Create release only for a new version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish_release.py
