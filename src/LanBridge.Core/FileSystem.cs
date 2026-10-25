@@ -77,14 +77,19 @@ public static class FileSystem
         int rootOffset = IntPtr.Size == 8 ? 8 : 4;
         int lengthOffset = rootOffset + IntPtr.Size;
         int nameOffset = lengthOffset + 4;
-        var buffer = Marshal.AllocHGlobal(nameOffset + bytes.Length);
+        // Win32 path conversion needs a NUL-terminated WCHAR string even though
+        // FileNameLength excludes that terminator. Otherwise trailing heap data
+        // can become part of the actual destination filename on Windows.
+        var bufferSize = nameOffset + bytes.Length + sizeof(char);
+        var buffer = Marshal.AllocHGlobal(bufferSize);
         try
         {
             for (var i = 0; i < nameOffset; i++) Marshal.WriteByte(buffer, i, 0);
             Marshal.WriteIntPtr(buffer, rootOffset, IntPtr.Zero);
             Marshal.WriteInt32(buffer, lengthOffset, bytes.Length);
             Marshal.Copy(bytes, 0, buffer + nameOffset, bytes.Length);
-            if (!SetFileInformationByHandle(handle ?? own!, 3, buffer, (uint)(nameOffset + bytes.Length)))
+            Marshal.WriteInt16(buffer, nameOffset + bytes.Length, 0);
+            if (!SetFileInformationByHandle(handle ?? own!, 3, buffer, (uint)bufferSize))
                 throw new IOException("移动失败；文件可能被占用或目标已存在。", new Win32Exception(Marshal.GetLastWin32Error()));
         }
         finally { Marshal.FreeHGlobal(buffer); }
