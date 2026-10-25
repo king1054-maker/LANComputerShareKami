@@ -57,6 +57,14 @@ jobs:
         run: |
           dotnet publish src/LanBridge.Windows/LanBridge.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o release/win-x64 2>&1 | Tee-Object artifacts/windows-publish.txt
           if ($LASTEXITCODE -ne 0) { throw 'Windows publish failed' }
+      - name: Capture Windows test directory names on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-ChildItem $env:TEMP -Directory -Filter 'LanBridge-tests-*' | ForEach-Object {
+            $root = Join-Path $_.FullName 'B'
+            cmd /c dir /a /x $root
+          } | Out-File artifacts/windows-directory-diagnostics.txt
       - name: Test native COM file drag data without dialogs
         shell: pwsh
         run: |
